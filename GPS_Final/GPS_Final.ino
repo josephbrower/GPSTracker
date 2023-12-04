@@ -1,23 +1,44 @@
 // what's the name of the hardware serial port?
+#include <ArduinoIoTCloud.h>
+#include <Arduino_ConnectionHandler.h>
 #define GPSSerial Serial1
 #define GPSECHO false
 #include <Adafruit_GPS.h>
 #include <LiquidCrystal.h>
 
+const char SSID[]     = "home5292";    // Network SSID (name)
+const char PASS[]     = "BeansSleeps3";    // Network password (use for WPA, or use as key for WEP)
+void onTargetLatitudeChange();
+void onTargetLongitudeChange();
+float currentLatitude;
+float targetLatitude;
+float targetLongitude;
+float timeToTarget;
+bool hitTargetValue = false;
+void initProperties(){
+  ArduinoCloud.addProperty(currentLatitude, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(targetLatitude, READWRITE, ON_CHANGE, onTargetLatitudeChange);
+  ArduinoCloud.addProperty(targetLongitude, READWRITE, ON_CHANGE, onTargetLongitudeChange);
+  ArduinoCloud.addProperty(timeToTarget, READ, ON_CHANGE, NULL);
+  ArduinoCloud.addProperty(hitTargetValue, READ, ON_CHANGE, NULL);
+
+}
+WiFiConnectionHandler ArduinoIoTPreferredConnection(SSID, PASS);
+
 Adafruit_GPS GPS(&GPSSerial);
 
-const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 const int btnPin = 10;
-bool btnState = false, pastbtnState = false;
+bool btnState = false, pastbtnState = false, isConnected = false;
 
 float longitude, latitude;
 
 
 void setup() {
   // make this baud rate fast enough to we aren't waiting on it
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Start!");
   // wait for hardware serial to appear
   //while (!Serial) delay(10);
@@ -28,47 +49,72 @@ void setup() {
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
 
   // set up the LCD's number of columns and rows:
+
+  pastbtnState = digitalRead(btnPin);
+  initProperties();
+  //connect to the IoT cloud
+  ArduinoCloud.begin(ArduinoIoTPreferredConnection,false);
+  Serial.println("IN HERE1");
+  setDebugMessageLevel(4);   //Get Cloud Info/errors , 0 (only errors) up to 4
+  ArduinoCloud.printDebugInfo();
+  Serial.println("IN HERE2");
+  ArduinoCloud.update();
   lcd.begin(16, 2);
   // Print a message to the LCD.
   lcd.print("Initializing...");
   pinMode(btnPin, INPUT);
   delay(1000);
   lcd.clear();
-  pastbtnState = digitalRead(btnPin);
-  if(btnState){
-    lcd.setCursor(0, 0);
-    lcd.print("Lat: " + String(latitude));
-    lcd.setCursor(1, 0);
-    lcd.print("Lon: " + String(longitude));
-  }else{
-    lcd.setCursor(0, 0);
-    lcd.print("OFF");
+  while (ArduinoCloud.connected() != 1) {
+    ArduinoCloud.update();
+    lcd.setCursor(0,0);
+    lcd.print("Waiting For");
+    lcd.setCursor(0,1);
+    lcd.print("Connection...");
+    delay(500);
   }
+  //lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Connected!");
+  delay(3000);
 }
 
 
 void loop() {
   checkbtnState();
   readGPS();
-  delay(1000);
-  //Serial.println(digitalRead(btnPin));
+  manageCloud();
+  /*if(latitude == targetLatitude && targetLatitude == latitude){
+    hitTargetValue = true;
+  }*/
+  Serial.println(digitalRead(btnPin));
+  delay(500);
 }
 void checkbtnState(){
   //button was pressed
   if(digitalRead(btnPin) && !pastbtnState){
     btnState = !btnState;
-    lcd.clear();
+    //lcd.clear();
     if(btnState){
-      lcd.setCursor(0, 0);
-      lcd.print("Lat: " + String(latitude));
-      lcd.setCursor(0, 1);
-      lcd.print("Lon: " + String(longitude));
+      printCords();
     }else{
-      lcd.setCursor(0, 0);
-      lcd.print("OFF");
+      printDistance();
     }
   }
   pastbtnState = digitalRead(btnPin);
+}
+void manageCloud(){
+
+  if(ArduinoCloud.connected() == 1){
+
+    isConnected = true;
+    Serial.println("Is connected: true");
+  }else{
+    ArduinoCloud.update();
+    isConnected = false;    
+    Serial.println("Is connected: false");
+  }
+
 }
 void readGPS(){
   String NMEA1, NMEA2;
@@ -87,7 +133,6 @@ void readGPS(){
   }
   GPS.parse(GPS.lastNMEA());
   NMEA2=GPS.lastNMEA();
-
   //Get data you want from sentences
   //Get/Calculate longitude
   degWhole = float(int(GPS.longitude/100));
@@ -103,6 +148,12 @@ void readGPS(){
   if(GPS.lat=='S'){
     latitude=(-1)*latitude;
   }
+  currentLatitude = latitude;
+  if(btnState){
+    printCords();
+  }else{
+    printDistance();
+  }
   Serial.print(NMEA1);
   Serial.println(NMEA2);
 }
@@ -114,4 +165,40 @@ void clearGPSBuffer(){//clear the buffer by reading the values
   while(!GPS.newNMEAreceived()){
     c=GPS.read();
   }
+  while(!GPS.newNMEAreceived()){
+    c=GPS.read();
+  }
+  while(!GPS.newNMEAreceived()){
+    c=GPS.read();
+  }
 }
+void printCords(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Lat: " + String(latitude));
+  lcd.setCursor(0, 1);
+  lcd.print("Lon: " + String(longitude));
+  Serial.println("LATTITUDE");
+  printConnectionStatus();
+}
+void printDistance(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("TLat: " + String(targetLatitude));
+  //lcd.print("Test");
+  lcd.setCursor(0, 1);
+  //lcd.print("Hello World");
+  //Serial.println("Hello World");
+  lcd.print("TLon: " + String(targetLongitude));
+  printConnectionStatus();
+}
+void printConnectionStatus(){
+  lcd.setCursor(15, 0);
+  if(isConnected){
+    lcd.print("Y");
+  }else{
+    lcd.print("N");
+  }
+}
+void onTargetLatitudeChange(){};
+void onTargetLongitudeChange(){};
