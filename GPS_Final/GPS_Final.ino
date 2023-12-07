@@ -6,8 +6,8 @@
 #include <Adafruit_GPS.h>
 #include <LiquidCrystal.h>
 
-const char SSID[]     = "home5292";    // Network SSID (name)
-const char PASS[]     = "BeansSleeps3";    // Network password (use for WPA, or use as key for WEP)
+const char SSID[]     = "WSUPSK";    // Network SSID (name)
+const char PASS[]     = "*ydUQuRpLyY?rWd)E";    // Network password (use for WPA, or use as key for WEP)
 void onTargetLatitudeChange();
 void onTargetLongitudeChange();
 float currentLatitude;
