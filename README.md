@@ -1,0 +1,1 @@
+  The GPS tracker is a final project that I completed for the graduate level IOT course at my university. It is designed to be a GPS location finder game where one user inputs a GPS coordinate on the cloud and the other moves the IOT device to that location and if the IOT device is successfully moved to that location then a "success" indicator is triggered.
