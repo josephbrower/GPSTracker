@@ -1,4 +1,4 @@
-// what's the name of the hardware serial port?
+
 #include <ArduinoIoTCloud.h>
 #include <Arduino_ConnectionHandler.h>
 #define GPSSerial Serial1
